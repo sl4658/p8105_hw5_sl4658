@@ -1,0 +1,19 @@
+---
+title: "p8105_hw5_sl4658"
+author: "Simin Ling"
+date: "11/17/2020"
+output: github_document
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(purrr)
+library(rvest)
+```
+
+## Problem 1
+Load and describe the raw data.
+```{r}
+homicide_raw = read_csv("./homicide-data.csv") 
+```
+
