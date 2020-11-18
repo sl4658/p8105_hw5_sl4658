@@ -98,6 +98,7 @@ results_df %>%
 
 
 ## Problem 2
+Import and tidy the data
 ```{r}
 data_1 = read_csv("lda_data/con_01.csv")
 ```
