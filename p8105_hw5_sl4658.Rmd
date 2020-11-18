@@ -119,7 +119,7 @@ path_df =
     names_prefix = "week_",
     values_to = "observation") %>%
   mutate(
-    arm = str_replace(arm, "data/", ""),
+    arm = str_replace(arm, "lda_data/", ""),
     arm = recode(arm, "con" = "control",
                       "exp" = "experiment"),
     id = as.character(id),
@@ -147,4 +147,111 @@ As shown in the graph, the observations on subjects in both control and experime
 
 
 
+## Problem 3
+Write a simulation function to explore power in a one-sample test (Fix n=30, sigma=5)
+```{r}
+sim_mean_sd = function(mu) {
+  
+  sim_data = tibble(
+    x = rnorm(n = 30, mean = mu, sd = 5),
+  ) %>%
+    t.test(mu = 0, conf.level = 0.95) %>%
+    broom::tidy() %>%
+    select(estimate, p.value) %>%
+    rename(c("mu_hat" = "estimate", "p_value" = "p.value"))
+}
+```
+  
 
+Set mu=0. Generate 5000 datasets from the model 
+```{r}
+sim_results = 
+  rerun(5000, sim_mean_sd(mu = 0) %>%
+          bind_rows()
+  )
+```
+
+
+Repeat the model for mu={1,2,3,4,5,6}
+```{r}
+sim_results =
+  tibble(mu = 1:6) %>%
+  mutate(
+    sim_output = map(.x = mu, ~rerun(5000, sim_mean_sd(mu = .x))),
+    sim_estimate = map(sim_output, bind_rows)
+  ) %>%
+  select(-sim_output) %>%
+  unnest(sim_estimate)
+```
+
+
+Make a plot showing the proportion of times the null was rejected on the y axis and the true value of μ on the x axis
+```{r}
+plot_1 = 
+  sim_results %>% 
+  mutate(
+    conclusion = if_else(p_value < 0.05, "reject", "fail to reject"),
+    mu = as.factor(mu)
+  ) %>%
+  group_by(mu) %>%
+  summarize(
+    reject = sum(conclusion == "reject"),
+    total = n(),
+    proportion = reject/total*100
+    ) %>% 
+  ggplot(aes(x = mu, y = proportion)) +
+  geom_point() +
+  labs(
+    title = "Power of the test over the true mean of the test",
+    x = "True value of mean",
+    y = "Power (proportion of times the null was rejected)"
+  )
+
+plot_1
+```
+
+As shown on the plot, we can see that the power of test increased with the increase in effect size. This indicates a positive correlation between power of test and effect size. Power of test reached its highest point around effect size of 4 and remained steady after that. 
+
+
+
+Make a plot `plot_2` showing the average estimate of μ̂  on the y axis and the true value of μ on the x axis. 
+```{r}
+plot_2 =
+  sim_results %>%
+  mutate(mu = as.factor(mu)) %>%
+  group_by(mu) %>%
+  summarize(mean_mu = mean(mu_hat)) %>%
+  ggplot(aes(x = mu, y = mean_mu)) +
+  geom_point(color = "red") +
+  ylim(0,7) +
+  labs(
+    title = "Average estimate of mu over the true value of mu in the entire data",
+    x = "True value of mu",
+    y = "Average estimate of mu") 
+
+plot_2
+```
+
+Make another plot `plot_3` with the average estimate of μ̂  only in samples for which the null was rejected.
+```{r}
+plot_3 = 
+  sim_results %>%
+  filter(p_value < 0.05) %>%
+  mutate(mu = as.factor(mu)) %>%
+  group_by(mu) %>%
+  summarize(mean_mu = mean(mu_hat)) %>%
+  ggplot(aes(x = mu, y = mean_mu)) +
+  geom_point(color = "orange") +
+  ylim(0,7) +
+  labs(
+    title = "Average estimate of mu over the true value of mu in the rejected data",
+    x = "True value of mu",
+    y = "Average estimate of mu")
+
+plot_3
+```
+
+
+For lower values of true mu (1 and 2), the sample average of `mu_hat` across samples for which the null was rejected is not equal to the true mean, instead it's larger than the true mean. However, as the true mu gets larger, the sample average of `mu_hat` across samples for which the null was rejected becomes close to the true mean for true mean.  
+
+This may be explained by the increase in power with the increase in effect size. When we have a constant sample size, a greater effect size will give us more precise result that is close to the truth.
