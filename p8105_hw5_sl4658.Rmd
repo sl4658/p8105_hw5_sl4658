@@ -15,5 +15,87 @@ library(rvest)
 Load and describe the raw data.
 ```{r}
 homicide_raw = read_csv("./homicide-data.csv") 
+
+head(homicide_raw)
 ```
+
+There are `r nrow(homicide_raw)` rows/observations and `r ncol(homicide_raw)` columns in the raw data. The `homicide_raw` data includes information on the homicide report date and location, the victim name, age and other demographic information, as well as whether an arrest was made. Each row corresponds to a homicide case being recorded.
+
+
+Create a `city_state` variable and a `resolved` variable that represents the disposition of homicide case
+```{r}
+homicide_df =
+  homicide_raw %>%
+  mutate(
+    city_state = str_c(city, state, sep = ", "),
+    resolved = case_when (
+      disposition == "Closed without arrest" ~ "unsolved",
+      disposition == "Open/No arrest" ~ "unsolved",
+      disposition == "Closed by arrest" ~ "solved",
+    )
+  ) %>%
+  select(city_state, resolved) %>%
+  filter(city_state != "Tulsa_AL")
+```
+Note: We drop Tulsa AL, because there is only one homicide case recorded for this city.
+
+
+Summarize within cities on the total number of homicides and the total number of unsolved homicides
+```{r}
+aggregate_df =  
+  homicide_df %>% 
+  group_by(city_state) %>% 
+  summarize(
+    hom_total = n(),
+    hom_unsolved = sum(resolved == "unsolved")
+  )
+
+aggregate_df
+```
+
+
+For the city of Baltimore, MD, use the `prop.test` function to estimate the proportion of homicides that are unsolved, apply `broom::tidy` to this object, and pull the estimated proportion and CIs from the resulting tidy dataframe.
+```{r}
+baltimore_df = 
+  prop.test(
+    aggregate_df %>% filter(city_state == "Baltimore, MD") %>% pull(hom_unsolved), 
+    aggregate_df %>% filter(city_state == "Baltimore, MD") %>% pull(hom_total)
+  ) %>% 
+  broom::tidy() %>% 
+  select(estimate, conf.low, conf.high)
+
+baltimore_df
+```
+
+
+Run `prop.test` for each city in the dataset `aggregate_df`, and extract both the proportion of unsolved homicides and the confidence interval for each. 
+```{r}
+results_df = 
+  aggregate_df %>% 
+  mutate(
+    prop_tests = map2(.x = hom_unsolved, .y = hom_total, ~prop.test(x = .x, n = .y)),
+    tidy_tests = map(.x = prop_tests, ~broom::tidy(.x))
+  ) %>% 
+  select(-prop_tests) %>% 
+  unnest(tidy_tests) %>% 
+  select(city_state, estimate, conf.low, conf.high)
+
+results_df
+```
+
+
+Create a plot that shows the estimates and CIs for each city 
+```{r}
+results_df %>% 
+  mutate(city_state = fct_reorder(city_state, estimate)) %>% 
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "City, State", y = "Estimated proportion of unsolved homicides", title = "Estimated proportions and CIs of unsolved homicides for each city")
+```
+
+
+
+
 
