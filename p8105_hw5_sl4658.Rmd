@@ -97,5 +97,53 @@ results_df %>%
 
 
 
+## Problem 2
+```{r}
+data_1 = read_csv("lda_data/con_01.csv")
+```
+
+```{r, error = TRUE}
+path_df = 
+  tibble(
+    path = list.files("lda_data")) %>% 
+  mutate(
+    path = str_c("lda_data/", path),
+    data = map(path, read_csv)) %>%
+  unnest(cols = data) %>%
+  separate(path, into = c("file", "arm", "id"), sep = "_") %>% 
+  select(-file) %>% 
+  pivot_longer(
+    week_1:week_8,
+    names_to = "week",
+    names_prefix = "week_",
+    values_to = "observation") %>%
+  mutate(
+    arm = str_replace(arm, "data/", ""),
+    arm = recode(arm, "con" = "control",
+                      "exp" = "experiment"),
+    id = as.character(id),
+    id = as.numeric(str_replace(id, ".csv", "")),
+    week = as.numeric(week, ".csv", ""))
+```
+
+Create a spaghetti plot showing observations on each subject over time
+```{r}
+spaghetti = 
+  path_df %>%
+  ggplot(aes(x = week, y = observation, group = id, color = arm)) + 
+  geom_line() + 
+  facet_grid(. ~arm) +
+  labs(
+    x = "Week",
+    y = "Observation",
+    title = "Observations on each subject over time"
+  )
+
+spaghetti
+```
+
+As shown in the graph, the observations on subjects in both control and experiment groups started from a relatively close value at week 0. The experiment group experienced an increasing trend in observation across time, while the control group remained relatively stable over the study time.
+
+
 
 
